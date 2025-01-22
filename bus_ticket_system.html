@@ -71,7 +71,6 @@
             margin-top: 10px;
         }
         .form {
-            display: none;
             margin-top: 20px;
         }
         .form input {
@@ -114,9 +113,6 @@
             <input type="email" id="email" placeholder="Email" required>
             <button onclick="savePassengerInfo()">Save</button>
         </div>
-        <div class="info">
-            <button onclick="printTicket()">Print Ticket</button>
-        </div>
     </div>
 
     <script>
@@ -129,6 +125,7 @@
         const emailInput = document.getElementById('email');
 
         let selectedSeats = [];
+        const googleScriptURL = "YOUR_GOOGLE_SHEET_API_URL"; // Replace with your Google Apps Script URL
 
         // Generate 40 seats dynamically
         const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
@@ -159,102 +156,61 @@
             });
         });
 
-        // Function to initialize seats based on local storage
         function initializeSeats() {
-            const storedSeats = JSON.parse(localStorage.getItem('bookedSeats')) || [];
-            storedSeats.forEach(seat => {
-                const seatElement = Array.from(document.querySelectorAll('.seat')).find(s => s.textContent === seat);
-                if (seatElement) {
-                    seatElement.classList.add('occupied');
-                }
-            });
-        }
-
-        // Save booked seats to local storage
-        function saveBookedSeats() {
-            const bookedSeats = Array.from(document.querySelectorAll('.seat.occupied')).map(seat => seat.textContent);
-            localStorage.setItem('bookedSeats', JSON.stringify(bookedSeats));
-        }
-
-        // Save passenger information and update local storage
-        function savePassengerInfo() {
-            if (selectedSeats.length > 0) {
-                const name = nameInput.value;
-                const address = addressInput.value;
-                const phone = phoneInput.value;
-                const email = emailInput.value;
-
-                if (name && address && phone && email) {
-                    alert(`Seats: ${selectedSeats.join(', ')}\nName: ${name}\nAddress: ${address}\nPhone: ${phone}\nEmail: ${email}`);
-
-                    selectedSeats.forEach(seat => {
+            fetch(googleScriptURL)
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(seat => {
                         const seatElement = Array.from(document.querySelectorAll('.seat')).find(s => s.textContent === seat);
                         if (seatElement) {
                             seatElement.classList.add('occupied');
                         }
                     });
-
-                    saveBookedSeats(); // Save to local storage
-
-                    passengerForm.style.display = 'none';
-                    nameInput.value = '';
-                    addressInput.value = '';
-                    phoneInput.value = '';
-                    emailInput.value = '';
-
-                    sendEmail(name, address, phone, email, selectedSeats);
-
-                    selectedSeats = [];
-                    selectedSeatsText.textContent = '0';
-                } else {
-                    alert('Please fill out all fields.');
-                }
-            }
+                });
         }
 
-        function printTicket() {
-            if (selectedSeats.length > 0) {
-                const name = nameInput.value || 'N/A';
-                const address = addressInput.value || 'N/A';
-                const phone = phoneInput.value || 'N/A';
-                const email = emailInput.value || 'N/A';
+        function savePassengerInfo() {
+            const name = nameInput.value;
+            const address = addressInput.value;
+            const phone = phoneInput.value;
+            const email = emailInput.value;
 
-                const ticketWindow = window.open('', '', 'width=400,height=600');
-                ticketWindow.document.write(`<!DOCTYPE html><html><head><title>Ticket</title></head><body>`);
-                ticketWindow.document.write(`<h1>Bus Ticket</h1>`);
-                ticketWindow.document.write(`<p><strong>Seats:</strong> ${selectedSeats.join(', ')}</p>`);
-                ticketWindow.document.write(`<p><strong>Name:</strong> ${name}</p>`);
-                ticketWindow.document.write(`<p><strong>Address:</strong> ${address}</p>`);
-                ticketWindow.document.write(`<p><strong>Phone:</strong> ${phone}</p>`);
-                ticketWindow.document.write(`<p><strong>Email:</strong> ${email}</p>`);
-                ticketWindow.document.write(`<p>Thank you for booking!</p>`);
-                ticketWindow.document.write(`</body></html>`);
-                ticketWindow.print();
-                ticketWindow.close();
+            if (name && address && phone && email && selectedSeats.length > 0) {
+                fetch(googleScriptURL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        seats: selectedSeats,
+                        name,
+                        address,
+                        phone,
+                        email
+                    }),
+                }).then(response => response.text())
+                  .then(() => {
+                      alert('Booking Successful!');
+                      selectedSeats.forEach(seat => {
+                          const seatElement = Array.from(document.querySelectorAll('.seat')).find(s => s.textContent === seat);
+                          if (seatElement) {
+                              seatElement.classList.add('occupied');
+                          }
+                      });
+                      selectedSeats = [];
+                      selectedSeatsText.textContent = '0';
+                      passengerForm.style.display = 'none';
+                      nameInput.value = '';
+                      addressInput.value = '';
+                      phoneInput.value = '';
+                      emailInput.value = '';
+                  });
             } else {
-                alert('Please select a seat first!');
+                alert('Please fill out all fields.');
             }
         }
 
-        function sendEmail(name, address, phone, email, seats) {
-            const mailtoLink = `mailto:${email}?subject=Bus Ticket Confirmation&body=Dear ${name},%0D%0A%0D%0AHere are your booking details:%0D%0ASeats: ${seats.join(', ')}%0D%0AName: ${name}%0D%0AAddress: ${address}%0D%0APhone: ${phone}%0D%0A%0D%0AThank you for booking with us!`;
-            window.location.href = mailtoLink;
-        }
-
-        // Add unblock functionality
-        seatContainer.addEventListener('contextmenu', (event) => {
-            event.preventDefault();
-            const seat = event.target;
-            if (seat.classList.contains('occupied')) {
-                const confirmUnblock = confirm(`Do you want to unblock seat ${seat.textContent}?`);
-                if (confirmUnblock) {
-                    seat.classList.remove('occupied');
-                    saveBookedSeats();
-                }
-            }
-        });
-
-        // Initialize seats on page load
+        // Initialize seats from Google Sheet on page load
         initializeSeats();
     </script>
 </body>
